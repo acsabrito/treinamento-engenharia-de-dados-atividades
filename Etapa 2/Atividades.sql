@@ -70,7 +70,7 @@ SELECT
     LAG(data_pedido) OVER (PARTITION BY id_cliente ORDER BY data_pedido) AS data_pedido_anterior
   FROM Pedidos)
 SELECT c.nome AS Cliente, pc.data_pedido AS DtPedidoAtual, pc.data_pedido_anterior AS DtPedidoAnterior,
- Ifnull (Cast ((JulianDay(pc.data_pedido) - JulianDay(pc.data_pedido_anterior)) As Integer), 0) as DifDatas
+ IFNULL (CAST ((JulianDay(pc.data_pedido) - JulianDay(pc.data_pedido_anterior)) AS Integer), 0) AS DifDatas
   FROM Clientes c 
   JOIN PedidosClientes pc ON c.id_cliente = pc.id_cliente
 
@@ -85,3 +85,25 @@ Valor do pedido
 Preço do pedido sem desconto (pode ser recuperado somando a coluna "preço" de cada produto dentro do pedido)
 Quantidade de dias entre o pedido e seu pedido imediatamente anterior
  */
+WITH PedidoAnterior AS (
+ SELECT p.id_pedido, p.id_cliente, p.data_pedido, LAG(p.data_pedido) OVER (PARTITION BY p.id_cliente ORDER BY p.data_pedido) AS data_pedido_anterior
+   FROM Pedidos p
+),
+PrecoSemDesconto AS (
+	SELECT ip.id_pedido, SUM(pr.preco*ip.quantidade) AS preco_sem_desconto
+	  FROM ItensPedido ip
+	  JOIN Produtos pr ON ip.id_produto = pr.id_produto
+	 GROUP BY ip.id_pedido
+)
+	SELECT c.id_cliente, c.nome AS nome_cliente, c.cidade AS cidade_cliente,
+		   p.id_pedido, p.data_pedido, p.valor AS valor_pedido,
+		   psd.preco_sem_desconto,
+		   CASE WHEN pa.data_pedido_anterior IS NOT NULL THEN JULIANDAY(p.data_pedido) - JULIANDAY(pa.data_pedido_anterior)
+		   		ELSE NULL
+		   END AS dias_entre_pedidos
+	  FROM Pedidos p
+	  JOIN Clientes c ON p.id_cliente = c.id_cliente
+	  JOIN PrecoSemDesconto psd ON p.id_pedido = psd.id_pedido
+ LEFT JOIN PedidoAnterior pa ON p.id_pedido = pa.id_pedido
+     ORDER BY c.id_cliente, p.data_pedido
+         
