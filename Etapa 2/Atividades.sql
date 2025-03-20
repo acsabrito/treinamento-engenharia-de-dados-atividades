@@ -1,45 +1,58 @@
 /* ATIVIDADE 1 
  * Listar os nomes e cidades de todos os clientes em uma só consulta
  */
-SELECT * FROM Clientes
+SELECT nome, cidade FROM Clientes;
 
 /* ATIVIDADE 2 
  * Listar os pedidos com valor acima de R$100
  */
-SELECT * FROM Pedidos p WHERE valor > 100
+SELECT * FROM Pedidos p WHERE valor > 100;
 
 /* ATIVIDADE 3 
  * Listar os pedidos ordenados pelo valor (decrescente)
  */
-SELECT * FROM Pedidos p ORDER BY valor DESC
+SELECT * FROM Pedidos p ORDER BY valor DESC;
 
 /* ATIVIDADE 4 
  * Listar os 3 primeiros produtos cadastrados
  */
-SELECT * FROM Produtos p LIMIT 3
+SELECT * FROM Produtos p ORDER BY id_produto LIMIT 3;
 
 /* ATIVIDADE 5 
  * Listar o total de valor gasto por cada cliente em pedidos.
  */
-SELECT id_cliente, sum(valor) AS valorTotal FROM Pedidos p GROUP BY id_cliente
+SELECT c.id_cliente, c.nome, sum(valor) AS valorTotal 
+  FROM Clientes c 
+  JOIN Pedidos p ON c.id_cliente = p.id_cliente
+  GROUP BY c.id_cliente, c.nome;
 
 /* ATIVIDADE 6
  * Encontrar o cliente com o maior valor gasto
  */
-SELECT p.id_cliente, sum(p.valor) AS valorTotal FROM Pedidos p GROUP BY p.id_cliente ORDER BY 2 DESC LIMIT 1
+SELECT p.id_cliente, sum(p.valor) AS valorTotal 
+  FROM Clientes c 
+  JOIN Pedidos p ON c.id_cliente = p.id_cliente
+ GROUP BY c.id_cliente, c.nome
+ ORDER BY 2 DESC LIMIT 1;
 
 /* ATIVIDADE 7
  * Utilizar CTE para calcular o total de vendas por produto
  */
-WITH TotalVendas AS (
-	SELECT ip.id_pedido, p.valor, sum(ip.quantidade) AS qtdTotal  FROM ItensPedido ip JOIN Pedidos p ON ip.id_pedido = p.id_pedido GROUP BY ip.id_pedido, p.valor
+WITH VendasPorProduto AS (
+	SELECT ip.id_produto,
+		   SUM(ip.quantidade) AS qtd_total_vendido
+	  FROM ItensPedido ip
+	 GROUP BY ip.id_produto
 )
-SELECT ip.id_produto, sum((tv.valor/qtdTotal)*ip.quantidade) AS ValorVendasTotal FROM TotalVendas tv JOIN ItensPedido ip ON tv.id_pedido = ip.id_pedido GROUP BY ip.id_produto
-
+SELECT p.id_produto, p.nome_produto, 
+	   vp.qtd_total_vendido, (vp.qtd_total_vendido * p.preco) AS valor_total_vendas
+  FROM Produtos p 
+  JOIN VendasPorProduto vp ON p.id_produto = vp.id_produto
+  
 /* ATIVIDADE 8
  *Listar todos os produtos comprados por cada cliente
  */
-SELECT c.nome AS Cliente, prod.nome_produto AS Produto
+SELECT c.id_cliente, c.nome AS Cliente, prod.id_produto, prod.nome_produto
   FROM Clientes c 
   JOIN Pedidos p ON c.id_cliente = p.id_cliente 
   JOIN ItensPedido ip ON p.id_pedido = ip.id_pedido 
@@ -48,15 +61,20 @@ SELECT c.nome AS Cliente, prod.nome_produto AS Produto
 /* ATIVIDADE 9
 Ranquear clientes pelo valor total gasto começando pelo rank 1 para o maior valor.
 */
-WITH RankPedidosClientes AS (
-	SELECT id_cliente, sum(valor) AS valorTotal FROM Pedidos p GROUP BY id_cliente
-)
-SELECT c.id_cliente, c.nome, rpc.valorTotal FROM Clientes c JOIN RankPedidosClientes rpc ON c.id_cliente = rpc.id_cliente ORDER BY rpc.valorTotal desc, c.nome
+SELECT c.id_cliente, c.nome, SUM(p.valor) AS total_gasto,
+	   RANK() OVER (ORDER BY SUM(p.valor) DESC) AS ranking
+  FROM Clientes c 
+  JOIN Pedidos p ON c.id_cliente = p.id_cliente
+ GROUP BY c.id_cliente, c.nome
 
 /* ATIVIDADE 10
 Número de pedidos por cliente, considerando apenas aqueles com mais de 1 pedido
 */
-SELECT id_cliente, count(*) AS QtdPedido FROM Pedidos p GROUP BY p.id_cliente HAVING COUNT(*) > 1
+SELECT c.id_cliente, c.nome, count(*) AS QtdPedido 
+  FROM Clientes c 
+  JOIN Pedidos p ON c.id_cliente = p.id_cliente
+ GROUP BY c.id_cliente, c.nome
+HAVING COUNT(p.id_pedido) > 1
 
 /* ATIVIDADE 11
 Calcular para cada cliente a quantidade de dias entre um pedido e o pedido imediatamente anterior
@@ -98,6 +116,7 @@ PrecoSemDesconto AS (
 	SELECT c.id_cliente, c.nome AS nome_cliente, c.cidade AS cidade_cliente,
 		   p.id_pedido, p.data_pedido, p.valor AS valor_pedido,
 		   psd.preco_sem_desconto,
+		   (psd.preco_sem_desconto - p.valor) AS preco_desconto ,
 		   CASE WHEN pa.data_pedido_anterior IS NOT NULL THEN JULIANDAY(p.data_pedido) - JULIANDAY(pa.data_pedido_anterior)
 		   		ELSE NULL
 		   END AS dias_entre_pedidos
@@ -106,4 +125,3 @@ PrecoSemDesconto AS (
 	  JOIN PrecoSemDesconto psd ON p.id_pedido = psd.id_pedido
  LEFT JOIN PedidoAnterior pa ON p.id_pedido = pa.id_pedido
      ORDER BY c.id_cliente, p.data_pedido
-         
